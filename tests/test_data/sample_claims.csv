@@ -1,0 +1,3 @@
+claim_id,patient_id,soap,provider,date_of_service
+CLM001,PAT12345,"Patient with chest pain, elevated troponin, ST elevation",Dr. Smith,2024-01-15
+CLM002,PAT67890,"Type 2 diabetes follow-up, HbA1c 8.2%",Dr. Jones,2024-01-16

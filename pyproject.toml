@@ -1,0 +1,203 @@
+[project]
+name = "medtechai-rcm-medcode-assist-poc"
+version = "0.1.0"
+description = "Agentic Python AI App for Medical Code Validation in Revenue Cycle Management (RCM)"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "DevTechAI Team", email = "team@devtechai.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+license = {text = "MIT"}
+
+dependencies = [
+    # Core AI/ML Dependencies
+    "openai>=1.0.0",
+    "anthropic>=0.25.0",
+    "langchain>=0.1.0",
+    "langchain-community>=0.0.20",
+    "langgraph>=0.0.20",
+    # RAG / Vector Store
+    "chromadb>=0.5.0",
+    "tiktoken>=0.5.2",
+    "pypdf>=3.12.0",
+    # Web Framework
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.2.1",
+    "python-multipart>=0.0.6",
+    # Data Processing & Validation
+    "pandas>=2.1.0",
+    "numpy>=1.24.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    # Database
+    "psycopg>=3.1.0", # Modern PostgreSQL adapter
+    "sqlite-utils>=3.35.0", # For SQLite operations
+    # HTTP Client & Utilities
+    "httpx>=0.25.0",
+    "python-dotenv>=1.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    # Monitoring & Logging
+    "structlog>=23.2.0",
+    "prometheus-client>=0.19.0",
+    # Google Generative AI (ADK-compatible stub)
+    "google-generativeai>=0.6.0",
+    # Medical Code Libraries (if available)
+    # "cpt-codes>=1.0.0",  # Uncomment if available
+    # "icd10-cm>=1.0.0",   # Uncomment if available
+    # "hcpcs-codes>=1.0.0", # Uncomment if available
+    "streamlit>=1.50.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.7.0",
+    "pre-commit>=3.6.0",
+    "ruff>=0.1.0",
+]
+
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-timeout>=2.2.0",
+    "pytest-mock>=3.12.0",
+    "httpx>=0.25.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/devtechai/MedTechAi-RCM-MedCode-Assist-POC"
+Documentation = "https://github.com/devtechai/MedTechAi-RCM-MedCode-Assist-POC#readme"
+"Bug Tracker" = "https://github.com/devtechai/MedTechAi-RCM-MedCode-Assist-POC/issues"
+
+[project.scripts]
+medtechai-server = "app.main:main"
+medtechai-init = "scripts.init:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app", "config", "scripts"]
+include = [
+    "app/**/*.py",
+    "config/**/*.py", 
+    "scripts/**/*.py",
+    "*.py",
+    "README.md",
+    "requirements.txt",
+]
+
+[tool.hatch.version]
+path = "app/__init__.py"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["app", "config", "tests"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "openai.*",
+    "anthropic.*",
+    "langchain.*",
+    "prometheus_client.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+    "--cov=app",
+    "--cov-report=html",
+    "--cov-report=term-missing",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests",
+]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.pydantic]
+check-fields = true
+check-extras = true
+check-annotations = true
+
+[tool.ruff.isort]
+known-first-party = ["app", "config", "tests"]

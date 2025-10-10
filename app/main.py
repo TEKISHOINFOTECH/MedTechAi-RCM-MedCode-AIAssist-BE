@@ -10,6 +10,7 @@ from config import settings
 from app.core import init_db
 from app.routes import medical_codes
 from app.routes import usecase1
+from app.routes import supabase
 
 
 @asynccontextmanager
@@ -35,6 +36,7 @@ app = FastAPI(
 # Include routers
 app.include_router(medical_codes.router)
 app.include_router(usecase1.router)
+app.include_router(supabase.router)
 
 # Add middleware
 app.add_middleware(

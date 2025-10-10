@@ -322,4 +322,5 @@ async def get_sample_data():
 
 @router.get("/health")
 async def uae_health_status():
-
+    """Health check endpoint for UAE Health integration."""
+    return {"status": "healthy", "service": "uae_health"}

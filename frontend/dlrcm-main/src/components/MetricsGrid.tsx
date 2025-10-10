@@ -7,93 +7,73 @@ export function MetricsGrid() {
       value: "12.4%",
       change: -2.3,
       icon: TrendingDown,
-      color: "emerald",
-      description: "Compared to last month"
+      color: "green"
     },
     {
       title: "Claims Processed",
       value: "2,847",
       change: 15.2,
       icon: Users,
-      color: "blue",
-      description: "This week"
+      color: "blue"
     },
     {
       title: "Revenue at Risk",
       value: "$847K",
       change: -8.1,
       icon: DollarSign,
-      color: "emerald",
-      description: "Potential losses"
+      color: "green"
     },
     {
       title: "Avg Processing Time",
       value: "4.2 days",
       change: -12.5,
       icon: Clock,
-      color: "emerald",
-      description: "Reduction from baseline"
+      color: "green"
     },
     {
       title: "High Risk Claims",
       value: "89",
       change: 5.7,
       icon: AlertCircle,
-      color: "red",
-      description: "Require immediate attention"
+      color: "red"
     },
     {
       title: "AI Accuracy",
       value: "94.7%",
       change: 1.2,
       icon: TrendingUp,
-      color: "emerald",
-      description: "Model performance"
+      color: "green"
     }
   ];
-
-  const getIconColor = (color: string) => {
-    const colors = {
-      emerald: 'text-emerald-600 bg-emerald-50',
-      blue: 'text-blue-600 bg-blue-50',
-      red: 'text-red-600 bg-red-50',
-      amber: 'text-amber-600 bg-amber-50'
-    };
-    return colors[color as keyof typeof colors] || colors.blue;
-  };
-
-  const getChangeIndicator = (change: number) => {
-    if (change > 0) return <TrendingUp className="w-3 h-3 text-emerald-600" />;
-    if (change < 0) return <TrendingDown className="w-3 h-3 text-red-600" />;
-    return null;
-  };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {metrics.map((metric, index) => {
         const Icon = metric.icon;
         const isPositive = metric.change > 0;
+        const changeColor = metric.color === 'red' 
+          ? (isPositive ? 'text-red-400' : 'text-green-400')
+          : (isPositive ? 'text-green-400' : 'text-red-400');
 
         return (
-          <div key={index} className="metric-card group">
+          <div key={index} className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6 hover:border-slate-600/50 transition-all duration-300">
             <div className="flex items-center justify-between mb-4">
-              <div className={`p-3 rounded-lg ${getIconColor(metric.color)}`}>
-                <Icon className="w-5 h-5" />
-              </div>
-              <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${
-                isPositive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-              }`}>
-                {getChangeIndicator(metric.change)}
+              <Icon className={`w-5 h-5 text-${metric.color}-400`} />
+              <span className={`text-sm font-medium ${changeColor} flex items-center space-x-1`}>
+                {isPositive ? (
+                  <TrendingUp className="w-3 h-3" />
+                ) : (
+                  <TrendingDown className="w-3 h-3" />
+                )}
                 <span>{Math.abs(metric.change)}%</span>
-              </div>
+              </span>
             </div>
             
             <div className="mb-2">
-              <h3 className="text-2xl font-bold text-slate-900 mb-1">{metric.value}</h3>
-              <p className="text-sm font-medium text-slate-700">{metric.title}</p>
+              <h3 className="text-2xl font-bold text-white">{metric.value}</h3>
             </div>
             
-            <p className="text-xs text-slate-600">{metric.description}</p>
+            <p className="text-slate-400 text-sm">{metric.title}</p>
           </div>
         );
       })}

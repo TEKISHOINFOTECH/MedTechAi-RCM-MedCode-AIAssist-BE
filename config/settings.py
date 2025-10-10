@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     debug: bool = True
     
     # Database Configuration
-    database_url: str = "sqlite:///./medtechai_rcm.db"
+    database_url: str = "sqlite:///./medtechai_rcm.db"  # Default for local dev
     
     # AI Service Configuration
     openai_api_key: Optional[str] = None

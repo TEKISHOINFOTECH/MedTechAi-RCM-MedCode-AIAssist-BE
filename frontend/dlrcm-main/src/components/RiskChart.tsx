@@ -13,22 +13,20 @@ export function RiskChart() {
   const maxValue = Math.max(...data.map(d => d.denials + d.approvals));
 
   return (
-    <div className="glass-card p-6">
-      <div className="flex items-center justify-between mb-8">
-        <h3 className="text-xl font-bold text-slate-800 flex items-center space-x-3">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-400/30">
-            <BarChart3 className="w-5 h-5 text-blue-600" />
-          </div>
+    <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+          <BarChart3 className="w-5 h-5 text-blue-400" />
           <span>Denial Trends</span>
         </h3>
-        <div className="flex items-center space-x-6 text-sm">
+        <div className="flex items-center space-x-4 text-sm">
           <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-gradient-to-r from-red-400 to-red-500 rounded-full"></div>
-            <span className="text-slate-700 font-medium">Denials</span>
+            <div className="w-3 h-3 bg-red-400 rounded-full"></div>
+            <span className="text-slate-300">Denials</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full"></div>
-            <span className="text-slate-700 font-medium">Approvals</span>
+            <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+            <span className="text-slate-300">Approvals</span>
           </div>
         </div>
       </div>
@@ -46,23 +44,23 @@ export function RiskChart() {
                 style={{ height: `${(item.denials / maxValue) * 160}px` }}
               ></div>
             </div>
-            <span className="text-xs text-slate-600 mt-2">{item.month}</span>
+            <span className="text-xs text-slate-400 mt-2">{item.month}</span>
           </div>
         ))}
       </div>
 
-      <div className="mt-8 grid grid-cols-3 gap-6 pt-6 border-t border-white/20">
+      <div className="mt-6 grid grid-cols-3 gap-4 pt-4 border-t border-slate-700/50">
         <div className="text-center">
-          <p className="text-2xl font-bold text-slate-900">8.2%</p>
-          <p className="text-xs text-slate-700 font-medium">Current Rate</p>
+          <p className="text-xl font-bold text-white">8.2%</p>
+          <p className="text-xs text-slate-400">Current Rate</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-emerald-600">-47%</p>
-          <p className="text-xs text-slate-700 font-medium">vs Last Quarter</p>
+          <p className="text-xl font-bold text-green-400">-47%</p>
+          <p className="text-xs text-slate-400">vs Last Quarter</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-slate-900">$2.1M</p>
-          <p className="text-xs text-slate-700 font-medium">Saved</p>
+          <p className="text-xl font-bold text-blue-400">$2.1M</p>
+          <p className="text-xs text-slate-400">Saved</p>
         </div>
       </div>
     </div>

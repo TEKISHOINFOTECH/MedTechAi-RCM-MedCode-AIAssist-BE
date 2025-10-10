@@ -10,7 +10,7 @@ from app.models.uae_health import (
     get_icd_validation_data,
     get_cpt_validation_data
 )
-from typing import Dict, Any
+from typing import Dict, Any, List
 import structlog
 
 logger = structlog.get_logger()

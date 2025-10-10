@@ -1,50 +1,29 @@
-# Use official Python runtime as parent image
-FROM python:3.11-slim
-
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    POETRY_NO_INTERACTION=1 \
-    POETRY_VENV_IN_PROJECT=1 \
-    POETRY_CACHE_DIR=/tmp/poetry_cache
-
-# Set work directory
-WORKDIR /app
+# Dockerfile for Render deployment
+FROM python:3.12.5-slim
 
 # Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        build-essential \
-        curl \
-        postgresql-client \
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install UV
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN pip install uv
 
-# Copy UV configuration files
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen
 
 # Copy application code
 COPY . .
 
-# Create non-root user
-RUN groupadd - -g 1000 medtechai \
-    && useradd --no-log-init -r -g medtechai -u 1000 medtechai \
-    && chown -R medtechai:medtechai /app
+# Expose port (Render will set PORT environment variable)
+EXPOSE $PORT
 
-# Switch to non-root user
-USER medtechai
-
-# Expose port
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Run the application
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start command
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "$PORT"]

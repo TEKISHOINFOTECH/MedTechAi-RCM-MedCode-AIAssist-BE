@@ -18,10 +18,11 @@ Complete guide for deploying the FastAPI backend to Render.
 ### 1. Prepare Your Backend
 
 All necessary files are already created:
-- ✅ `render.yaml` - Render configuration
-- ✅ `Dockerfile.render` - Docker configuration
+- ✅ `render.yaml` - Render configuration (Python-based)
+- ✅ `render-docker.yaml` - Alternative Docker configuration
+- ✅ `requirements.txt` - Python dependencies
 - ✅ `.env.example` - Environment template
-- ✅ `pyproject.toml` - Python dependencies
+- ✅ `pyproject.toml` - Python dependencies (source)
 
 ### 2. Push to GitHub
 

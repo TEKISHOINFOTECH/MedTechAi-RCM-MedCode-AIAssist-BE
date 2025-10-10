@@ -1,0 +1,197 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test-connectivity:
+    name: Test External Connectivity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install UV
+        run: pip install uv
+      
+      - name: Install dependencies
+        run: uv sync --group test
+      
+      - name: Run connectivity tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          source .venv/bin/activate
+          pytest tests/integration/test_external_connectivity.py -v -m integration --tb=short
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: connectivity-test-results
+          path: |
+            pytest-report.xml
+            .pytest_cache/
+
+  test-workflows:
+    name: Test Agent Workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: test-connectivity
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install UV
+        run: pip install uv
+      
+      - name: Install dependencies
+        run: uv sync --group test
+      
+      - name: Run workflow tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          source .venv/bin/activate
+          pytest tests/integration/test_workflow_validation.py -v -m "integration and not slow" --tb=short
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workflow-test-results
+          path: |
+            pytest-report.xml
+            .pytest_cache/
+
+  test-api:
+    name: Test API Endpoints
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test-connectivity
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install UV
+        run: pip install uv
+      
+      - name: Install dependencies
+        run: uv sync --group test
+      
+      - name: Start backend server
+        run: |
+          source .venv/bin/activate
+          uvicorn app.main:app --host 0.0.0.0 --port 8001 &
+          sleep 5
+      
+      - name: Run API tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          source .venv/bin/activate
+          pytest tests/integration/test_api_endpoints.py -v -m integration --tb=short
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-test-results
+          path: |
+            pytest-report.xml
+            .pytest_cache/
+
+  test-coverage:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [test-connectivity, test-workflows, test-api]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install UV
+        run: pip install uv
+      
+      - name: Install dependencies
+        run: uv sync --group test
+      
+      - name: Run tests with coverage
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          source .venv/bin/activate
+          pytest tests/integration/ -v -m "integration and not slow" \
+            --cov=app \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term-missing
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: integration-tests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+      
+      - name: Upload coverage HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [test-connectivity, test-workflows, test-api, test-coverage]
+    if: always()
+    
+    steps:
+      - name: Check test results
+        run: |
+          echo "## Integration Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All integration tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Jobs" >> $GITHUB_STEP_SUMMARY
+          echo "- Connectivity Tests: ${{ needs.test-connectivity.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Workflow Tests: ${{ needs.test-workflows.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- API Tests: ${{ needs.test-api.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Coverage Report: ${{ needs.test-coverage.result }}" >> $GITHUB_STEP_SUMMARY
+

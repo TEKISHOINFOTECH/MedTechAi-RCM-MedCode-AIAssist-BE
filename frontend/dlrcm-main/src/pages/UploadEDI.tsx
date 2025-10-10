@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Upload, FileText, CheckCircle, AlertTriangle, Brain, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Logo } from '../components/Logo';
 import type { EDIFile } from '../types/claim';
 
 export function UploadEDI() {
@@ -86,10 +87,15 @@ export function UploadEDI() {
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8">
+    <main className="py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">EDI File Upload & Processing</h1>
-        <p className="text-slate-300">Upload your EDI files for AI-powered claim analysis and denial risk assessment</p>
+        <div className="flex items-center space-x-4 mb-4">
+          <Logo size="lg" />
+          <div>
+            <h1 className="text-4xl font-bold text-slate-800">EDI File Upload & Processing</h1>
+            <p className="text-slate-700 text-lg font-medium">Upload your EDI files for AI-powered claim analysis and denial risk assessment</p>
+          </div>
+        </div>
       </div>
 
       {/* Upload Area */}
@@ -116,10 +122,10 @@ export function UploadEDI() {
             </div>
             
             <div>
-              <h3 className="text-xl font-semibold text-white mb-2">
+              <h3 className="text-xl font-bold text-slate-900 mb-2">
                 Drop your EDI files here
               </h3>
-              <p className="text-slate-400 mb-4">
+              <p className="text-slate-700 mb-4">
                 Supports .edi, .x12, and .txt formats
               </p>
               <input
@@ -144,32 +150,32 @@ export function UploadEDI() {
 
       {/* AI Processing Features */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
+        <div className="enterprise-card p-6">
           <div className="flex items-center space-x-3 mb-4">
-            <Brain className="w-6 h-6 text-purple-400" />
-            <h3 className="font-semibold text-white">AI Code Validation</h3>
+            <Brain className="w-6 h-6 text-purple-600" />
+            <h3 className="font-bold text-slate-900">AI Code Validation</h3>
           </div>
-          <p className="text-slate-300 text-sm">
+          <p className="text-slate-700 text-sm">
             Advanced AI validates ICD-10 and CPT codes against current standards and identifies potential issues
           </p>
         </div>
 
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
+        <div className="enterprise-card p-6">
           <div className="flex items-center space-x-3 mb-4">
-            <AlertTriangle className="w-6 h-6 text-amber-400" />
-            <h3 className="font-semibold text-white">Risk Assessment</h3>
+            <AlertTriangle className="w-6 h-6 text-amber-600" />
+            <h3 className="font-bold text-slate-900">Risk Assessment</h3>
           </div>
-          <p className="text-slate-300 text-sm">
+          <p className="text-slate-700 text-sm">
             Real-time denial risk scoring based on historical patterns and claim characteristics
           </p>
         </div>
 
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
+        <div className="enterprise-card p-6">
           <div className="flex items-center space-x-3 mb-4">
-            <Zap className="w-6 h-6 text-green-400" />
-            <h3 className="font-semibold text-white">Smart Recommendations</h3>
+            <Zap className="w-6 h-6 text-emerald-600" />
+            <h3 className="font-bold text-slate-900">Smart Recommendations</h3>
           </div>
-          <p className="text-slate-300 text-sm">
+          <p className="text-slate-700 text-sm">
             Actionable insights and recommendations to reduce denial rates and improve approval chances
           </p>
         </div>
@@ -177,8 +183,8 @@ export function UploadEDI() {
 
       {/* Uploaded Files */}
       {uploadedFiles.length > 0 && (
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
-          <h3 className="text-lg font-semibold text-white mb-6">Processing Status</h3>
+        <div className="enterprise-card p-6">
+          <h3 className="text-lg font-bold text-slate-900 mb-6">Processing Status</h3>
           
           <div className="space-y-4">
             {uploadedFiles.map((file) => (
@@ -186,14 +192,14 @@ export function UploadEDI() {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-3">
                     <FileText className="w-5 h-5 text-blue-400" />
-                    <span className="font-medium text-white">{file.fileName}</span>
+                    <span className="font-medium text-slate-900">{file.fileName}</span>
                     {file.status === 'completed' && (
                       <CheckCircle className="w-4 h-4 text-green-400" />
                     )}
                   </div>
                   
                   <div className="flex items-center space-x-4">
-                    <span className="text-sm text-slate-400">
+                    <span className="text-sm text-slate-700">
                       {file.processedClaims}/{file.totalClaims} claims
                     </span>
                     {file.status === 'completed' && (
@@ -219,16 +225,16 @@ export function UploadEDI() {
                 {file.status === 'completed' && (
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
-                      <p className="text-lg font-bold text-white">{file.overallRiskScore}%</p>
-                      <p className="text-xs text-slate-400">Avg Risk Score</p>
+                      <p className="text-lg font-bold text-slate-900">{file.overallRiskScore}%</p>
+                      <p className="text-xs text-slate-700">Avg Risk Score</p>
                     </div>
                     <div>
                       <p className="text-lg font-bold text-green-400">${file.estimatedSavings.toLocaleString()}</p>
-                      <p className="text-xs text-slate-400">Est. Savings</p>
+                      <p className="text-xs text-slate-700">Est. Savings</p>
                     </div>
                     <div>
-                      <p className="text-lg font-bold text-blue-400">{file.totalClaims}</p>
-                      <p className="text-xs text-slate-400">Total Claims</p>
+                      <p className="text-lg font-bold text-blue-600">{file.totalClaims}</p>
+                      <p className="text-xs text-slate-700">Total Claims</p>
                     </div>
                   </div>
                 )}

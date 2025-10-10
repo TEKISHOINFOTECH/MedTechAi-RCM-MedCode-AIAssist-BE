@@ -10,7 +10,6 @@ from config import settings
 from app.core import init_db
 from app.routes import medical_codes
 from app.routes import usecase1
-from app.routes import uae_health
 
 
 @asynccontextmanager
@@ -36,7 +35,6 @@ app = FastAPI(
 # Include routers
 app.include_router(medical_codes.router)
 app.include_router(usecase1.router)
-app.include_router(uae_health.router)
 
 # Add middleware
 app.add_middleware(
@@ -50,7 +48,7 @@ app.add_middleware(
 if not settings.debug:
     app.add_middleware(
         TrustedHostMiddleware, 
-        allowed_hosts=["yourdomain.com", "*.yourdomain.com"]
+        allowed_hosts=["yourdomain.com", "*.yourdomain.com", "*.onrender.com", "*.render.com"]
     )
 
 
@@ -74,6 +72,11 @@ async def health_check():
         "environment": settings.environment
     }
 
+@app.head("/health")
+async def health_check_head():
+    """Health check endpoint for HEAD requests."""
+    return {"status": "healthy"}
+
 
 @app.get("/metrics")
 async def metrics():
@@ -85,11 +88,14 @@ async def metrics():
 def main():
     """Main function for CLI execution."""
     import uvicorn
+    import os
+    
+    port = int(os.environ.get("PORT", 8000))
     
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=port,
         reload=settings.debug,
         log_level=settings.log_level.lower()
     )

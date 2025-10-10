@@ -45,9 +45,11 @@ export function RecentActivity() {
   ];
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
-      <h3 className="text-lg font-semibold text-white mb-6 flex items-center space-x-2">
-        <Clock className="w-5 h-5 text-blue-400" />
+    <div className="glass-card p-6">
+      <h3 className="text-xl font-bold text-slate-800 mb-8 flex items-center space-x-3">
+        <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-400/30">
+          <Clock className="w-5 h-5 text-blue-600" />
+        </div>
         <span>Recent Activity</span>
       </h3>
 
@@ -55,12 +57,14 @@ export function RecentActivity() {
         {activities.map((activity, index) => {
           const Icon = activity.icon;
           return (
-            <div key={index} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-slate-700/30 transition-colors">
-              <Icon className={`w-4 h-4 text-${activity.color}-400 mt-1 flex-shrink-0`} />
+            <div key={index} className="flex items-start space-x-4 p-4 rounded-xl hover:bg-white/10 transition-all duration-300 group">
+              <div className={`p-2 rounded-lg bg-gradient-to-br from-${activity.color}-500/20 to-${activity.color}-600/10 border border-${activity.color}-400/30`}>
+                <Icon className={`w-4 h-4 text-${activity.color}-400`} />
+              </div>
               <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-medium text-white truncate">{activity.title}</h4>
-                <p className="text-xs text-slate-400 mt-1">{activity.description}</p>
-                <span className="text-xs text-slate-500 mt-2 inline-block">{activity.time}</span>
+                <h4 className="text-sm font-bold text-slate-900 truncate mb-1">{activity.title}</h4>
+                <p className="text-xs text-slate-700 mb-2 leading-relaxed">{activity.description}</p>
+                <span className="text-xs text-slate-600 font-medium">{activity.time}</span>
               </div>
             </div>
           );

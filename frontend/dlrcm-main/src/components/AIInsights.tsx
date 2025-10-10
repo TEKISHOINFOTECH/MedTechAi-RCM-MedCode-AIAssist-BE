@@ -26,14 +26,17 @@ export function AIInsights() {
   ];
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
-      <div className="flex items-center space-x-3 mb-6">
-        <div className="relative">
-          <Brain className="w-6 h-6 text-purple-400" />
-          <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-400 rounded-full animate-ping"></div>
+    <div className="glass-card p-6">
+      <div className="flex items-center space-x-4 mb-8">
+        <div className="relative ai-glow">
+          <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-pink-500 rounded-xl blur-lg opacity-30 animate-glow-pulse"></div>
+          <div className="relative bg-white/10 backdrop-blur-xl rounded-xl p-3 border border-white/20">
+            <Brain className="w-6 h-6 text-gradient-purple" />
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full animate-ping"></div>
+          </div>
         </div>
-        <h3 className="text-lg font-semibold text-white">AI Insights</h3>
-        <span className="px-2 py-1 bg-purple-500/20 text-purple-400 text-xs font-medium rounded-full">
+        <h3 className="text-xl font-bold text-slate-800">AI Insights</h3>
+        <span className="px-3 py-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-400 text-xs font-bold rounded-full border border-purple-400/30">
           LIVE
         </span>
       </div>
@@ -42,28 +45,32 @@ export function AIInsights() {
         {insights.map((insight, index) => {
           const Icon = insight.icon;
           return (
-            <div key={index} className="border border-slate-700/50 rounded-lg p-4 hover:border-slate-600/50 transition-all duration-200">
-              <div className="flex items-start space-x-3">
-                <Icon className="w-5 h-5 text-blue-400 mt-0.5" />
+            <div key={index} className="glass-card p-5 hover:bg-white/15 transition-all duration-300 group">
+              <div className="flex items-start space-x-4">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-400/30">
+                  <Icon className="w-5 h-5 text-blue-400" />
+                </div>
                 <div className="flex-1">
-                  <h4 className="font-medium text-white mb-1">{insight.title}</h4>
-                  <p className="text-sm text-slate-300 mb-3">{insight.description}</p>
+                  <h4 className="font-bold text-slate-900 mb-2 text-lg">{insight.title}</h4>
+                  <p className="text-sm text-slate-700 mb-4 leading-relaxed">{insight.description}</p>
                   
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs text-slate-400">Confidence:</span>
-                      <div className="flex items-center space-x-1">
-                        <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xs text-slate-600 font-medium">Confidence:</span>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-16 h-2 bg-white/20 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-gradient-to-r from-green-400 to-green-500 transition-all duration-700"
+                            className="h-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-1000 relative"
                             style={{ width: `${insight.confidence}%` }}
-                          ></div>
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                          </div>
                         </div>
-                        <span className="text-xs text-green-400 font-medium">{insight.confidence}%</span>
+                        <span className="text-xs text-green-400 font-bold">{insight.confidence}%</span>
                       </div>
                     </div>
                     
-                    <button className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-full transition-colors">
+                    <button className="text-xs glossy-button px-4 py-2 text-sm">
                       {insight.action}
                     </button>
                   </div>

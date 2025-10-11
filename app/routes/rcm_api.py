@@ -280,6 +280,15 @@ async def save_xml(
         raise HTTPException(status_code=500, detail=f"XML save failed: {str(e)}")
 
 
+# PING ENDPOINT
+@router.get("/ping", summary="RCM API Ping")
+async def rcm_api_ping():
+    """
+    Simple ping endpoint to verify RCM API connectivity.
+    """
+    return "RCM-BE Ping is Successful"
+
+
 # HEALTH CHECK ENDPOINT
 @router.get("/health", summary="RCM API Health Check")
 async def rcm_api_health():
@@ -291,6 +300,7 @@ async def rcm_api_health():
         "status": "healthy",
         "message": "RCM API is operational",
         "endpoints": [
+            "GET /rcm-api/ping (Connectivity Check)",
             "POST /rcm-api/getAISuggested_ICDCodes (High Priority)",
             "POST /rcm-api/getCPTCodes (High Priority)",
             "POST /rcm-api/uploadEDI_XML (Medium Priority)",

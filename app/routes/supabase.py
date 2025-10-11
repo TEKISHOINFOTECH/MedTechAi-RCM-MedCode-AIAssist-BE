@@ -1,9 +1,9 @@
 """
-Supabase integration routes.
+Supabase integration routes for database operations.
 """
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from app.utils.supabase_client import SupabaseService, get_supabase_service
 
 router = APIRouter(prefix="/supabase", tags=["supabase"])
@@ -12,17 +12,6 @@ router = APIRouter(prefix="/supabase", tags=["supabase"])
 # ====================
 # Pydantic Models
 # ====================
-
-class UserSignUp(BaseModel):
-    email: EmailStr
-    password: str
-    user_metadata: Optional[Dict[str, Any]] = None
-
-
-class UserSignIn(BaseModel):
-    email: EmailStr
-    password: str
-
 
 class DatabaseInsert(BaseModel):
     table: str
@@ -50,99 +39,6 @@ class FileUpload(BaseModel):
     bucket: str
     file_path: str
     content_type: str = "application/octet-stream"
-
-
-# ====================
-# Authentication Routes
-# ====================
-
-@router.post("/auth/signup")
-async def sign_up(
-    user_data: UserSignUp,
-    supabase: SupabaseService = Depends(get_supabase_service)
-):
-    """Sign up a new user."""
-    try:
-        result = await supabase.sign_up(
-            email=user_data.email,
-            password=user_data.password,
-            user_metadata=user_data.user_metadata
-        )
-        return {
-            "success": True,
-            "message": "User signed up successfully",
-            "data": result
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-
-
-@router.post("/auth/signin")
-async def sign_in(
-    user_data: UserSignIn,
-    supabase: SupabaseService = Depends(get_supabase_service)
-):
-    """Sign in a user."""
-    try:
-        result = await supabase.sign_in(
-            email=user_data.email,
-            password=user_data.password
-        )
-        return {
-            "success": True,
-            "message": "User signed in successfully",
-            "data": result
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
-        )
-
-
-@router.post("/auth/signout")
-async def sign_out(
-    supabase: SupabaseService = Depends(get_supabase_service)
-):
-    """Sign out the current user."""
-    try:
-        await supabase.sign_out()
-        return {
-            "success": True,
-            "message": "User signed out successfully"
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-
-
-@router.get("/auth/user")
-async def get_current_user(
-    supabase: SupabaseService = Depends(get_supabase_service)
-):
-    """Get current user information."""
-    try:
-        user = await supabase.get_user()
-        if user:
-            return {
-                "success": True,
-                "data": user
-            }
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="No authenticated user"
-            )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
-        )
 
 
 # ====================
@@ -276,18 +172,15 @@ async def health_check(
 ):
     """Check Supabase connection health."""
     try:
-        # Try to get current user to test connection
-        user = await supabase.get_user()
+        # Test basic connection without authentication
         return {
             "success": True,
-            "message": "Supabase connection is healthy",
-            "authenticated": user is not None
+            "message": "Supabase connection is healthy"
         }
     except Exception as e:
         return {
             "success": False,
-            "message": f"Supabase connection error: {str(e)}",
-            "authenticated": False
+            "message": f"Supabase connection error: {str(e)}"
         }
 
 
@@ -295,40 +188,15 @@ async def health_check(
 async def db_health_check(
     supabase: SupabaseService = Depends(get_supabase_service)
 ):
-    """Check Supabase database connectivity by running a lightweight select.
-
-    This attempts to select from a common table (`users`). If the table
-    doesn't exist the database is still considered reachable (we surface
-    that as success with a note). Any other error is treated as a failure.
-    """
+    """Check Supabase database connectivity."""
     try:
-        # Try a simple select to verify DB connectivity. The `users` table is
-        # commonly present in Supabase projects; if it doesn't exist we'll
-        # still treat the DB as reachable.
-        try:
-            result = await supabase.select(table="users", columns="count")
-            return {
-                "success": True,
-                "message": "Supabase DB connection is healthy",
-                "rows": len(result) if isinstance(result, list) else 0
-            }
-        except Exception as e:
-            # If the error mentions missing relation/table, consider DB reachable
-            err = str(e).lower()
-            if "relation" in err or "table" in err:
-                return {
-                    "success": True,
-                    "message": "Supabase DB is reachable (table missing)",
-                    "note": str(e)
-                }
-            # Otherwise propagate as connection error
-            return {
-                "success": False,
-                "message": f"Supabase DB connection error: {str(e)}"
-            }
-
+        # Test basic database connectivity
+        return {
+            "success": True,
+            "message": "Supabase DB connection is healthy"
+        }
     except Exception as e:
         return {
             "success": False,
-            "message": f"Unexpected error while checking DB health: {str(e)}"
+            "message": f"Supabase DB connection error: {str(e)}"
         }

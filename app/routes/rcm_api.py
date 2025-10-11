@@ -75,6 +75,22 @@ class ClaimDataResponse(BaseModel):
     timestamp: str = Field(..., description="Operation timestamp")
 
 
+class EDIClaimsRequest(BaseModel):
+    """Request model for retrieving EDI claims data."""
+    claim_id: Optional[str] = Field(None, description="Specific claim ID to retrieve (optional)")
+    limit: Optional[int] = Field(10, description="Number of records to retrieve (default: 10)")
+    offset: Optional[int] = Field(0, description="Number of records to skip (default: 0)")
+
+
+class EDIClaimsResponse(BaseModel):
+    """Response model for EDI claims data."""
+    success: bool = Field(..., description="Operation success status")
+    message: str = Field(..., description="Response message")
+    claims: List[Dict[str, Any]] = Field(..., description="List of claim records")
+    total_count: Optional[int] = Field(None, description="Total number of records")
+    timestamp: str = Field(..., description="Operation timestamp")
+
+
 # HIGH PRIORITY ENDPOINTS
 
 @router.post("/edi_json_persist", summary="Save Claim Data to Supabase", response_model=ClaimDataResponse)
@@ -129,6 +145,73 @@ async def save_claim_data(
         raise HTTPException(
             status_code=500, 
             detail=f"Failed to save claim data: {str(e)}"
+        )
+
+
+@router.get("/getEDIclaims_Jsondata", summary="Get EDI Claims JSON Data", response_model=EDIClaimsResponse)
+async def get_edi_claims_jsondata(
+    claim_id: Optional[str] = Query(None, description="Specific claim ID to retrieve (optional)"),
+    limit: int = Query(10, description="Number of records to retrieve (default: 10)"),
+    offset: int = Query(0, description="Number of records to skip (default: 0)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve EDI claims data (JSON payloads) from Supabase claim_data table.
+    
+    **Priority: High**
+    
+    **UI Request:**
+    - claim_id: Optional specific claim ID to retrieve (query parameter)
+    - limit: Number of records to retrieve (default: 10)
+    - offset: Number of records to skip (default: 0)
+    
+    **BE Response:**
+    - List of claim records with claim_id and edi_json_payload
+    """
+    try:
+        from app.utils.supabase_client import get_supabase_service
+        
+        # Get Supabase service
+        supabase_service = await get_supabase_service()
+        
+        # Prepare query parameters
+        filters = {}
+        if claim_id:
+            filters["claim_id"] = claim_id
+        
+        # Retrieve data from Supabase
+        result = await supabase_service.select(
+            table="claim_data",
+            columns="id, claim_id, edi_json_payload, created_at",
+            filters=filters
+        )
+        
+        # Apply pagination
+        total_count = len(result)
+        paginated_result = result[offset:offset + limit]
+        
+        # Format response data
+        claims = []
+        for record in paginated_result:
+            claims.append({
+                "id": record.get("id"),
+                "claim_id": record.get("claim_id"),
+                "edi_json_payload": record.get("edi_json_payload"),
+                "created_at": record.get("created_at")
+            })
+        
+        return EDIClaimsResponse(
+            success=True,
+            message=f"Retrieved {len(claims)} EDI claims records",
+            claims=claims,
+            total_count=total_count,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to retrieve EDI claims data: {str(e)}"
         )
 
 
@@ -372,6 +455,7 @@ async def rcm_api_health():
         "endpoints": [
             "GET /rcm-api/ping (Connectivity Check)",
             "POST /rcm-api/edi_json_persist (High Priority - Supabase Integration)",
+            "GET /rcm-api/getEDIclaims_Jsondata (High Priority - Data Retrieval)",
             "POST /rcm-api/getAISuggested_ICDCodes (High Priority)",
             "POST /rcm-api/getCPTCodes (High Priority)",
             "POST /rcm-api/uploadEDI_XML (Medium Priority)",

@@ -60,7 +60,77 @@ class XMLSaveResponse(BaseModel):
     message: str = Field(..., description="Success message")
 
 
+class ClaimDataRequest(BaseModel):
+    """Request model for saving claim data to Supabase."""
+    claim_id: str = Field(..., description="Claim ID (key from JSON object)")
+    edi_json_payload: str = Field(..., description="JSON string to persist")
+
+
+class ClaimDataResponse(BaseModel):
+    """Response model for claim data operations."""
+    success: bool = Field(..., description="Operation success status")
+    message: str = Field(..., description="Response message")
+    claim_id: str = Field(..., description="Claim ID")
+    record_id: Optional[str] = Field(None, description="Database record ID")
+    timestamp: str = Field(..., description="Operation timestamp")
+
+
 # HIGH PRIORITY ENDPOINTS
+
+@router.post("/edi_json_persist", summary="Save Claim Data to Supabase", response_model=ClaimDataResponse)
+async def save_claim_data(
+    request: ClaimDataRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Save claim data (JSON string) to Supabase claim_data table.
+    
+    **Priority: High**
+    
+    **UI Request:**
+    - claim_id: Key from JSON object
+    - edi_json_payload: JSON string to persist
+    
+    **BE Response:**
+    - Success status and record details
+    """
+    try:
+        from app.utils.supabase_client import get_supabase_service
+        import uuid
+        
+        # Get Supabase service
+        supabase_service = await get_supabase_service()
+        
+        # Generate UUID for claim_id and prepare data for insertion
+        claim_uuid = str(uuid.uuid4())
+        claim_data = {
+            "claim_id": claim_uuid,
+            "edi_json_payload": request.edi_json_payload
+        }
+        
+        # Insert into Supabase
+        result = await supabase_service.insert(
+            table="claim_data",
+            data=claim_data
+        )
+        
+        # Extract record ID from result
+        record_id = result[0].get("id") if result and len(result) > 0 else None
+        
+        return ClaimDataResponse(
+            success=True,
+            message="Claim data saved successfully to Supabase",
+            claim_id=claim_uuid,
+            record_id=record_id,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to save claim data: {str(e)}"
+        )
+
 
 @router.post("/getAISuggested_ICDCodes", summary="Get AI Suggested ICD Codes")
 async def get_ai_suggested_icd_codes(
@@ -301,6 +371,7 @@ async def rcm_api_health():
         "message": "RCM API is operational",
         "endpoints": [
             "GET /rcm-api/ping (Connectivity Check)",
+            "POST /rcm-api/edi_json_persist (High Priority - Supabase Integration)",
             "POST /rcm-api/getAISuggested_ICDCodes (High Priority)",
             "POST /rcm-api/getCPTCodes (High Priority)",
             "POST /rcm-api/uploadEDI_XML (Medium Priority)",

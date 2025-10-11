@@ -11,6 +11,9 @@ from app.core import init_db
 from app.routes import medical_codes
 from app.routes import usecase1
 from app.routes import supabase
+from app.routes import orchestrator
+from app.routes import database
+from app.routes import rcm_api
 
 
 @asynccontextmanager
@@ -37,13 +40,21 @@ app = FastAPI(
 app.include_router(medical_codes.router)
 app.include_router(usecase1.router)
 app.include_router(supabase.router)
+app.include_router(orchestrator.router)
+app.include_router(database.router)
+app.include_router(rcm_api.router)
 
 # Add middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"] if settings.debug else ["https://yourdomain.com"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://medtechai-rcm-backend.onrender.com",
+        "https://yourdomain.com"
+    ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
 )
 
@@ -78,6 +89,11 @@ async def health_check():
 async def health_check_head():
     """Health check endpoint for HEAD requests."""
     return {"status": "healthy"}
+
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    """Handle CORS preflight requests."""
+    return {"message": "OK"}
 
 
 @app.get("/metrics")

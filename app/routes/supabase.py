@@ -289,3 +289,46 @@ async def health_check(
             "message": f"Supabase connection error: {str(e)}",
             "authenticated": False
         }
+
+
+@router.get("/health/db")
+async def db_health_check(
+    supabase: SupabaseService = Depends(get_supabase_service)
+):
+    """Check Supabase database connectivity by running a lightweight select.
+
+    This attempts to select from a common table (`users`). If the table
+    doesn't exist the database is still considered reachable (we surface
+    that as success with a note). Any other error is treated as a failure.
+    """
+    try:
+        # Try a simple select to verify DB connectivity. The `users` table is
+        # commonly present in Supabase projects; if it doesn't exist we'll
+        # still treat the DB as reachable.
+        try:
+            result = await supabase.select(table="users", columns="count")
+            return {
+                "success": True,
+                "message": "Supabase DB connection is healthy",
+                "rows": len(result) if isinstance(result, list) else 0
+            }
+        except Exception as e:
+            # If the error mentions missing relation/table, consider DB reachable
+            err = str(e).lower()
+            if "relation" in err or "table" in err:
+                return {
+                    "success": True,
+                    "message": "Supabase DB is reachable (table missing)",
+                    "note": str(e)
+                }
+            # Otherwise propagate as connection error
+            return {
+                "success": False,
+                "message": f"Supabase DB connection error: {str(e)}"
+            }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Unexpected error while checking DB health: {str(e)}"
+        }

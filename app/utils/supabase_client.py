@@ -2,6 +2,7 @@
 Supabase client utilities and helper functions.
 """
 from typing import Any, Dict, List, Optional, Union
+import asyncio
 from supabase import Client
 from app.config.supabase import get_supabase_client
 
@@ -30,13 +31,16 @@ class SupabaseService:
             Dict containing user data and session
         """
         try:
-            response = self.client.auth.sign_up({
-                "email": email,
-                "password": password,
-                "options": {
-                    "data": user_metadata or {}
-                }
-            })
+            def _do():
+                return self.client.auth.sign_up({
+                    "email": email,
+                    "password": password,
+                    "options": {
+                        "data": user_metadata or {}
+                    }
+                })
+
+            response = await asyncio.to_thread(_do)
             return response
         except Exception as e:
             raise Exception(f"Sign up failed: {str(e)}")
@@ -53,10 +57,13 @@ class SupabaseService:
             Dict containing user data and session
         """
         try:
-            response = self.client.auth.sign_in_with_password({
-                "email": email,
-                "password": password
-            })
+            def _do():
+                return self.client.auth.sign_in_with_password({
+                    "email": email,
+                    "password": password
+                })
+
+            response = await asyncio.to_thread(_do)
             return response
         except Exception as e:
             raise Exception(f"Sign in failed: {str(e)}")
@@ -64,15 +71,18 @@ class SupabaseService:
     async def sign_out(self) -> None:
         """Sign out the current user."""
         try:
-            self.client.auth.sign_out()
+            await asyncio.to_thread(self.client.auth.sign_out)
         except Exception as e:
             raise Exception(f"Sign out failed: {str(e)}")
     
     async def get_user(self) -> Optional[Dict[str, Any]]:
         """Get current user."""
         try:
-            response = self.client.auth.get_user()
-            return response.user if response.user else None
+            def _do():
+                return self.client.auth.get_user()
+
+            response = await asyncio.to_thread(_do)
+            return response.user if getattr(response, "user", None) else None
         except Exception as e:
             raise Exception(f"Get user failed: {str(e)}")
     
@@ -92,7 +102,10 @@ class SupabaseService:
             Inserted data
         """
         try:
-            response = self.client.table(table).insert(data).execute()
+            def _do():
+                return self.client.table(table).insert(data).execute()
+
+            response = await asyncio.to_thread(_do)
             return response.data
         except Exception as e:
             raise Exception(f"Insert failed: {str(e)}")
@@ -110,19 +123,23 @@ class SupabaseService:
             List of records
         """
         try:
-            query = self.client.table(table).select(columns)
-            
-            if filters:
-                for key, value in filters.items():
-                    if isinstance(value, dict):
-                        # Handle operators like {'gte': 10}
-                        for op, val in value.items():
-                            query = getattr(query, op)(key, val)
-                    else:
-                        query = query.eq(key, value)
-            
-            response = query.execute()
-            return response.data
+            def _do():
+                query = self.client.table(table).select(columns)
+
+                if filters:
+                    for key, value in filters.items():
+                        if isinstance(value, dict):
+                            # Handle operators like {'gte': 10}
+                            for op, val in value.items():
+                                query = getattr(query, op)(key, val)
+                        else:
+                            query = query.eq(key, value)
+
+                response = query.execute()
+                return response.data
+
+            response_data = await asyncio.to_thread(_do)
+            return response_data
         except Exception as e:
             raise Exception(f"Select failed: {str(e)}")
     
@@ -139,13 +156,17 @@ class SupabaseService:
             Updated records
         """
         try:
-            query = self.client.table(table).update(data)
-            
-            for key, value in filters.items():
-                query = query.eq(key, value)
-            
-            response = query.execute()
-            return response.data
+            def _do():
+                query = self.client.table(table).update(data)
+
+                for key, value in filters.items():
+                    query = query.eq(key, value)
+
+                response = query.execute()
+                return response.data
+
+            response = await asyncio.to_thread(_do)
+            return response
         except Exception as e:
             raise Exception(f"Update failed: {str(e)}")
     
@@ -161,13 +182,17 @@ class SupabaseService:
             Deleted records
         """
         try:
-            query = self.client.table(table).delete()
-            
-            for key, value in filters.items():
-                query = query.eq(key, value)
-            
-            response = query.execute()
-            return response.data
+            def _do():
+                query = self.client.table(table).delete()
+
+                for key, value in filters.items():
+                    query = query.eq(key, value)
+
+                response = query.execute()
+                return response.data
+
+            response = await asyncio.to_thread(_do)
+            return response
         except Exception as e:
             raise Exception(f"Delete failed: {str(e)}")
     
@@ -189,11 +214,14 @@ class SupabaseService:
             Upload response
         """
         try:
-            response = self.client.storage.from_(bucket).upload(
-                path=file_path,
-                file=file_data,
-                file_options={"content-type": content_type}
-            )
+            def _do():
+                return self.client.storage.from_(bucket).upload(
+                    path=file_path,
+                    file=file_data,
+                    file_options={"content-type": content_type}
+                )
+
+            response = await asyncio.to_thread(_do)
             return response
         except Exception as e:
             raise Exception(f"File upload failed: {str(e)}")
@@ -210,7 +238,10 @@ class SupabaseService:
             File data as bytes
         """
         try:
-            response = self.client.storage.from_(bucket).download(file_path)
+            def _do():
+                return self.client.storage.from_(bucket).download(file_path)
+
+            response = await asyncio.to_thread(_do)
             return response
         except Exception as e:
             raise Exception(f"File download failed: {str(e)}")
@@ -227,7 +258,10 @@ class SupabaseService:
             Delete response
         """
         try:
-            response = self.client.storage.from_(bucket).remove([file_path])
+            def _do():
+                return self.client.storage.from_(bucket).remove([file_path])
+
+            response = await asyncio.to_thread(_do)
             return response
         except Exception as e:
             raise Exception(f"File delete failed: {str(e)}")
@@ -244,7 +278,10 @@ class SupabaseService:
             Public URL
         """
         try:
-            response = self.client.storage.from_(bucket).get_public_url(file_path)
+            def _do():
+                return self.client.storage.from_(bucket).get_public_url(file_path)
+
+            response = await asyncio.to_thread(_do)
             return response
         except Exception as e:
             raise Exception(f"Get public URL failed: {str(e)}")

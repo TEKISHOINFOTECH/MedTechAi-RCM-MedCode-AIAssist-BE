@@ -300,3 +300,43 @@ async def rcm_api_health():
         ],
         "timestamp": datetime.utcnow().isoformat()
     }
+
+
+
+@router.post("/edi_json_persist", summary="Persist EDI JSON Payload")
+async def edi_json_persist(
+    payload: Dict[str, Any]
+):
+    """Accept arbitrary EDI JSON from the UI and persist it for processing.
+
+    UI will POST the EDI JSON to this endpoint. The backend will write the
+    payload to disk under `data/processed/edi_uploads/` with a timestamped
+    filename and return 200 OK on success.
+    """
+    try:
+        # Ensure directory exists
+        import os, json
+
+        out_dir = os.path.join(os.getcwd(), "data", "processed", "edi_uploads")
+        os.makedirs(out_dir, exist_ok=True)
+
+        # Create a timestamped filename
+        ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        filename = f"edi_payload_{ts}.json"
+        filepath = os.path.join(out_dir, filename)
+
+        # Persist JSON payload
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+
+        return {
+            "api_method_name": "edi_json_persist",
+            "status": "success",
+            "message": "EDI payload persisted",
+            "file": filename,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to persist EDI JSON: {str(e)}")
+
+

@@ -200,3 +200,25 @@ async def db_health_check(
             "success": False,
             "message": f"Supabase DB connection error: {str(e)}"
         }
+
+
+@router.get("/db/tables", summary="List Database Tables")
+async def list_database_tables():
+    """List all tables in the Supabase database."""
+    try:
+        from app.utils.supabase_client import get_supabase_service
+        
+        supabase_service = await get_supabase_service()
+        tables = await supabase_service.list_tables()
+        
+        return {
+            "success": True,
+            "message": f"Found {len(tables)} tables",
+            "tables": tables
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Failed to list tables: {str(e)}",
+            "tables": []
+        }

@@ -3,7 +3,7 @@ RCM API routes for EDI processing and medical coding.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
 from sqlalchemy.orm import Session
@@ -63,7 +63,7 @@ class XMLSaveResponse(BaseModel):
 class ClaimDataRequest(BaseModel):
     """Request model for saving claim data to Supabase."""
     claim_id: str = Field(..., description="Claim ID (key from JSON object)")
-    edi_json_payload: str = Field(..., description="JSON string to persist")
+    edi_json_payload: Union[str, Dict[str, Any]] = Field(..., description="JSON string or object to persist")
 
 
 class ClaimDataResponse(BaseModel):
@@ -104,12 +104,48 @@ async def save_claim_data(
     **Priority: High**
     
     **UI Request:**
-    - claim_id: Key from JSON object
-    - edi_json_payload: JSON string to persist
+    - claim_id: Claim ID from frontend (used directly as text)
+    - edi_json_payload: JSON string or object to persist (will be cleansed and validated)
+    
+    **BE Processing:**
+    - Accepts both string and object payloads
+    - Validates JSON format
+    - Handles escaped sequences (newlines, tabs)
+    - Removes escape characters
+    - Uses provided claim_id directly as text
+    - Stores clean JSON in Supabase
     
     **BE Response:**
     - Success status and record details
     """
+    import json
+    
+    # Clean and validate the JSON payload first
+    try:
+        # Handle both string and object payloads
+        if isinstance(request.edi_json_payload, str):
+            # Parse the JSON string to validate it and remove escape characters
+            parsed_json = json.loads(request.edi_json_payload)
+        else:
+            # Already a dictionary/object, use it directly
+            parsed_json = request.edi_json_payload
+        
+        # Convert to clean JSON string without escape characters
+        clean_json_payload = json.dumps(parsed_json, separators=(',', ':'))
+        
+    except json.JSONDecodeError as json_error:
+        # If initial parsing fails, try to fix common issues
+        try:
+            # Replace escaped newlines and other escape sequences
+            fixed_payload = request.edi_json_payload.replace('\\n', '\n').replace('\\t', '\t')
+            parsed_json = json.loads(fixed_payload)
+            clean_json_payload = json.dumps(parsed_json, separators=(',', ':'))
+        except json.JSONDecodeError as second_error:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid JSON payload: {str(second_error)}"
+            )
+    
     try:
         from app.utils.supabase_client import get_supabase_service
         import uuid
@@ -117,11 +153,10 @@ async def save_claim_data(
         # Get Supabase service
         supabase_service = await get_supabase_service()
         
-        # Generate UUID for claim_id and prepare data for insertion
-        claim_uuid = str(uuid.uuid4())
+        # Use the claim_id from the request directly (now supports text)
         claim_data = {
-            "claim_id": claim_uuid,
-            "edi_json_payload": request.edi_json_payload
+            "claim_id": request.claim_id,
+            "edi_json_payload": clean_json_payload
         }
         
         # Insert into Supabase
@@ -136,7 +171,7 @@ async def save_claim_data(
         return ClaimDataResponse(
             success=True,
             message="Claim data saved successfully to Supabase",
-            claim_id=claim_uuid,
+            claim_id=request.claim_id,
             record_id=record_id,
             timestamp=datetime.utcnow().isoformat()
         )

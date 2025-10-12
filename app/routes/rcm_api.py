@@ -91,6 +91,13 @@ class EDIClaimsResponse(BaseModel):
     timestamp: str = Field(..., description="Operation timestamp")
 
 
+class LLMTestRequest(BaseModel):
+    """Request model for LLM test endpoint."""
+    prompt: str = Field(..., description="Prompt to send to the LLM")
+    model: Optional[str] = Field(None, description="Optional model override")
+    temperature: Optional[float] = Field(0.1, description="Optional temperature")
+
+
 # HIGH PRIORITY ENDPOINTS
 
 @router.post("/edi_json_persist", summary="Save Claim Data to Supabase", response_model=ClaimDataResponse)
@@ -500,3 +507,84 @@ async def rcm_api_health():
         ],
         "timestamp": datetime.utcnow().isoformat()
     }
+# SAVE CLAIM DATA TO SUPABASE
+@router.post("/rcm-api/edi_json_persist", summary="Save Claim Data to Supabase", response_model=ClaimDataResponse)
+async def save_claim_data(
+    request: ClaimDataRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Save claim data (JSON string) to Supabase claim_data table.
+    
+    **Priority: High**
+    
+    **UI Request:**
+    - claim_id: Key from JSON object
+    - edi_json_payload: JSON string to persist
+    
+    **BE Response:**
+    - Success status and record details
+    """
+    try:
+        from app.utils.supabase_client import get_supabase_service
+        import uuid
+        
+        # Get Supabase service
+        supabase_service = await get_supabase_service()
+        
+        # Generate UUID for claim_id and prepare data for insertion
+        claim_uuid = str(uuid.uuid4())
+        claim_data = {
+            "claim_id": claim_uuid,
+            "edi_json_payload": request.edi_json_payload
+        }
+        
+        # Insert into Supabase
+        result = await supabase_service.insert(
+            table="claim_data",
+            data=claim_data
+        )
+        
+        # Extract record ID from result
+        record_id = result[0].get("id") if result and len(result) > 0 else None
+        
+        return ClaimDataResponse(
+            success=True,
+            message="Claim data saved successfully to Supabase",
+            claim_id=claim_uuid,
+            record_id=record_id,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to save claim data: {str(e)}"
+        )
+        
+# LLM TEST ENDPOINT FROM LLM INTERACTIONS
+@router.post("/LLM_test", summary="Test LLM Integration")
+async def llm_test(
+    request: LLMTestRequest
+):
+    """Test endpoint to verify LLM integration using the project's LLMClient.
+
+    POST /LLM_test
+    """
+    try:
+        # Call the user's synchronous generate_text helper in a background thread
+        import asyncio
+
+        from app.services.LLM_interactions.LLM_check import generate_text
+
+        text = await asyncio.to_thread(generate_text, request.prompt)
+
+        return {
+            "api_method_name": "LLM_test",
+            "status": "success",
+            "prompt": request.prompt,
+            "ai_response": text,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM integration test failed: {str(e)}")

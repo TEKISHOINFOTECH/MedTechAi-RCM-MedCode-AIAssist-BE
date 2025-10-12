@@ -4,7 +4,7 @@ RCM API routes for EDI processing and medical coding.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
-from datetime import datetime
+from datetime import datetime, date
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
@@ -87,6 +87,28 @@ class EDIClaimsResponse(BaseModel):
     success: bool = Field(..., description="Operation success status")
     message: str = Field(..., description="Response message")
     claims: List[Dict[str, Any]] = Field(..., description="List of claim records")
+    total_count: Optional[int] = Field(None, description="Total number of records")
+    timestamp: str = Field(..., description="Operation timestamp")
+
+
+class ClaimIdsDataRecord(BaseModel):
+    """Model for claim_ids_data_table records."""
+    id: str = Field(..., description="Record ID")
+    claimid: str = Field(..., description="Claim ID")
+    patientid: str = Field(..., description="Patient ID")
+    providerid: str = Field(..., description="Provider ID")
+    dateofservice: date = Field(..., description="Date of service")
+    amount: float = Field(..., description="Claim amount")
+    denialrisk: Optional[str] = Field(None, description="Denial risk level")
+    claimriskscore: Optional[float] = Field(None, description="Claim risk score")
+    created_at: datetime = Field(..., description="Record creation timestamp")
+
+
+class ClaimIdsDataResponse(BaseModel):
+    """Response model for claim_ids_data_table data."""
+    success: bool = Field(..., description="Operation success status")
+    message: str = Field(..., description="Response message")
+    data: List[ClaimIdsDataRecord] = Field(..., description="List of claim data records")
     total_count: Optional[int] = Field(None, description="Total number of records")
     timestamp: str = Field(..., description="Operation timestamp")
 
@@ -247,6 +269,97 @@ async def get_edi_claims_jsondata(
         raise HTTPException(
             status_code=500, 
             detail=f"Failed to retrieve EDI claims data: {str(e)}"
+        )
+
+
+@router.get("/getClaimIdsData", summary="Get Claim IDs Data Table", response_model=ClaimIdsDataResponse)
+async def get_claim_ids_data(
+    claimid: Optional[str] = Query(None, description="Specific claim ID to retrieve (optional)"),
+    patientid: Optional[str] = Query(None, description="Specific patient ID to retrieve (optional)"),
+    providerid: Optional[str] = Query(None, description="Specific provider ID to retrieve (optional)"),
+    limit: int = Query(10, description="Number of records to retrieve (default: 10)"),
+    offset: int = Query(0, description="Number of records to skip (default: 0)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve claim metadata from claim_ids_data_table.
+    
+    **Priority: High**
+    
+    **UI Request:**
+    - claimid: Optional specific claim ID to retrieve
+    - patientid: Optional specific patient ID to retrieve
+    - providerid: Optional specific provider ID to retrieve
+    - limit: Number of records to retrieve (default: 10)
+    - offset: Number of records to skip (default: 0)
+    
+    **BE Response:**
+    - List of claim metadata records with risk scores and amounts
+    - Only returns the latest record for each claim ID (deduplicated)
+    - Records are ordered by creation timestamp (newest first)
+    """
+    try:
+        from app.utils.supabase_client import get_supabase_service
+
+        supabase_service = await get_supabase_service()
+        
+        # Build filters
+        filters = {}
+        if claimid:
+            filters["claimid"] = claimid
+        if patientid:
+            filters["patientid"] = patientid
+        if providerid:
+            filters["providerid"] = providerid
+
+        # Retrieve data from Supabase - order by created_at DESC to get latest records first
+        result = await supabase_service.select(
+            table="claim_ids_data_table",
+            columns="id, claimid, patientid, providerid, dateofservice, amount, denialrisk, claimriskscore, created_at",
+            filters=filters,
+            order_by="created_at",
+            order_direction="desc"
+        )
+        
+        # Group by claimid and keep only the latest record for each claimid
+        latest_records = {}
+        for record in result:
+            claimid = record.get("claimid")
+            if claimid not in latest_records:
+                latest_records[claimid] = record
+        
+        # Convert to list and apply pagination
+        unique_records = list(latest_records.values())
+        total_count = len(unique_records)
+        paginated_result = unique_records[offset:offset + limit]
+
+        # Convert to Pydantic models
+        claim_records = []
+        for record in paginated_result:
+            claim_records.append(ClaimIdsDataRecord(
+                id=record.get("id"),
+                claimid=record.get("claimid"),
+                patientid=record.get("patientid"),
+                providerid=record.get("providerid"),
+                dateofservice=record.get("dateofservice"),
+                amount=record.get("amount"),
+                denialrisk=record.get("denialrisk"),
+                claimriskscore=record.get("claimriskscore"),
+                created_at=record.get("created_at")
+            ))
+
+        return ClaimIdsDataResponse(
+            success=True,
+            message=f"Retrieved {len(claim_records)} claim data records",
+            data=claim_records,
+            total_count=total_count,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve claim IDs data: {str(e)}"
         )
 
 
@@ -491,6 +604,7 @@ async def rcm_api_health():
             "GET /rcm-api/ping (Connectivity Check)",
             "POST /rcm-api/edi_json_persist (High Priority - Supabase Integration)",
             "GET /rcm-api/getEDIclaims_Jsondata (High Priority - Data Retrieval)",
+            "GET /rcm-api/getClaimIdsData (High Priority - Claim Metadata)",
             "POST /rcm-api/getAISuggested_ICDCodes (High Priority)",
             "POST /rcm-api/getCPTCodes (High Priority)",
             "POST /rcm-api/uploadEDI_XML (Medium Priority)",

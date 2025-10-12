@@ -47,9 +47,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
+        "http://localhost:5174",
         "http://localhost:3000",
         "https://medtechai-rcm-backend-i2rh.onrender.com",
         "https://medtechai-rcm-backend.onrender.com",
+        "https://medtech-ai-rcm-med-code-ai-assist-u.vercel.app",
         "https://yourdomain.com"
     ],
     allow_credentials=True,

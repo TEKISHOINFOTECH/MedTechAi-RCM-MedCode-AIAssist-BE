@@ -110,7 +110,7 @@ class SupabaseService:
         except Exception as e:
             raise Exception(f"Insert failed: {str(e)}")
     
-    async def select(self, table: str, columns: str = "*", filters: Optional[Dict] = None) -> List[Dict[str, Any]]:
+    async def select(self, table: str, columns: str = "*", filters: Optional[Dict] = None, order_by: Optional[str] = None, order_direction: str = "asc") -> List[Dict[str, Any]]:
         """
         Select data from a table.
         
@@ -118,6 +118,8 @@ class SupabaseService:
             table: Table name
             columns: Columns to select (default: "*")
             filters: Filter conditions
+            order_by: Column to order by
+            order_direction: Order direction ("asc" or "desc")
             
         Returns:
             List of records
@@ -134,6 +136,12 @@ class SupabaseService:
                                 query = getattr(query, op)(key, val)
                         else:
                             query = query.eq(key, value)
+
+                if order_by:
+                    if order_direction.lower() == "desc":
+                        query = query.order(order_by, desc=True)
+                    else:
+                        query = query.order(order_by, desc=False)
 
                 response = query.execute()
                 return response.data
@@ -285,6 +293,44 @@ class SupabaseService:
             return response
         except Exception as e:
             raise Exception(f"Get public URL failed: {str(e)}")
+    
+    async def list_tables(self) -> List[str]:
+        """
+        List all tables in the public schema.
+        
+        Returns:
+            List of table names
+        """
+        try:
+            def _do():
+                # Use RPC to get table information
+                response = self.client.rpc('get_tables').execute()
+                return response.data
+                
+            response = await asyncio.to_thread(_do)
+            return response
+        except Exception as e:
+            # Fallback: try to query information_schema directly
+            try:
+                def _do_fallback():
+                    response = self.client.table('information_schema.tables').select('table_name').eq('table_schema', 'public').execute()
+                    return [table['table_name'] for table in response.data]
+                    
+                response = await asyncio.to_thread(_do_fallback)
+                return response
+            except Exception as e2:
+                # Last resort: try common table names
+                common_tables = ['claim_data', 'claim_ids_data_table', 'users', 'profiles']
+                available_tables = []
+                for table in common_tables:
+                    try:
+                        def _test_table():
+                            self.client.table(table).select('*').limit(1).execute()
+                        await asyncio.to_thread(_test_table)
+                        available_tables.append(table)
+                    except:
+                        continue
+                return available_tables
 
 
 # Global service instance

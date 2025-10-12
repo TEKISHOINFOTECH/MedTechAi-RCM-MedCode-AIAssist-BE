@@ -48,6 +48,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
+        "https://medtechai-rcm-backend-i2rh.onrender.com",
         "https://medtechai-rcm-backend.onrender.com",
         "https://yourdomain.com"
     ],

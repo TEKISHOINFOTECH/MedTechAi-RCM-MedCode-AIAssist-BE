@@ -113,6 +113,29 @@ class ClaimIdsDataResponse(BaseModel):
     timestamp: str = Field(..., description="Operation timestamp")
 
 
+class AISuggestedICDRequest(BaseModel):
+    """Request model for AI suggested ICD codes."""
+    clinical_note: str = Field(..., description="Clinical note text")
+    patient_historical_ailments: Optional[List[Dict[str, Any]]] = Field(
+        None, 
+        description="Patient's historical ailments/diagnoses"
+    )
+
+
+class ICDCodeSuggestion(BaseModel):
+    """Individual ICD code suggestion."""
+    icd_code: str = Field(..., description="ICD-10 code")
+    icd_title: str = Field(..., description="ICD-10 code title")
+    confidence_score: float = Field(..., description="Confidence level as percentage")
+    explanation: str = Field(..., description="1-2 line summary why this code is relevant")
+    clinical_relevance: Optional[str] = Field(None, description="Short reasoning describing clinical link")
+
+
+class AISuggestedICDResponse(BaseModel):
+    """Response model for AI suggested ICD codes."""
+    ai_suggested_icd_codes: List[ICDCodeSuggestion] = Field(..., description="List of AI suggested ICD codes")
+
+
 # HIGH PRIORITY ENDPOINTS
 
 @router.post("/edi_json_persist", summary="Save Claim Data to Supabase", response_model=ClaimDataResponse)
@@ -363,9 +386,9 @@ async def get_claim_ids_data(
         )
 
 
-@router.post("/getAISuggested_ICDCodes", summary="Get AI Suggested ICD Codes")
+@router.post("/getAISuggested_ICDCodes", summary="Get AI Suggested ICD Codes", response_model=AISuggestedICDResponse)
 async def get_ai_suggested_icd_codes(
-    request: ICDCodeRequest,
+    request: AISuggestedICDRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -373,25 +396,113 @@ async def get_ai_suggested_icd_codes(
     
     **Priority: High**
     
-    **UI Request:** Doc Notes only
-    **BE Response:** AI LLM ICD Codes
+    **UI Request:** 
+    - clinical_note: Clinical note text string
+    - patient_historical_ailments: Optional list of historical diagnoses
+    
+    **BE Response:** AI LLM ICD Codes with confidence scores and explanations
     """
     try:
-        # TODO: Implement AI LLM logic here
-        # For now, return mock response
-        return {
-            "api_method_name": "getAISuggested_ICDCodes",
-            "status": "working",
-            "message": "AI Suggested ICD Codes endpoint is functional",
-            "mock_response": {
-                "suggested_icd_codes": ["Z00.00", "Z12.11", "Z51.11"],
-                "confidence_scores": [0.95, 0.87, 0.82],
-                "reasoning": "Based on clinical notes analysis, these ICD codes best represent the patient's conditions."
-            },
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        from app.utils.llm import LLMClient
+        import json
+        
+        # Initialize LLM client
+        llm_client = LLMClient()
+        
+        # Format patient historical ailments for the prompt
+        historical_ailments_text = ""
+        if request.patient_historical_ailments:
+            historical_ailments_text = "\n".join([
+                f"VisitDate: {ailment.get('VisitDate', 'N/A')}\n"
+                f"Diagnosis Code: {ailment.get('Diagnosis Code', 'N/A')}\n"
+                f"ShortDescription: {ailment.get('ShortDescription', 'N/A')}\n"
+                for ailment in request.patient_historical_ailments
+            ])
+        
+        # Construct the prompt
+        prompt = f"""You are an expert medical coder trained in ICD-10-CM classification.   
+
+Given a doctor's clinical note, identify the most relevant ICD-10 codes along with their clinical descriptions and confidence levels. 
+
+Return your response **strictly in JSON format** that follows this structure: 
+
+{{ 
+  "ai_suggested_icd_codes": [ 
+    {{ 
+      "icd_code": "string",                  // ICD-10 code, e.g., "N18.6" 
+      "icd_title": "string",                 // ICD-10 code title, e.g., "End-stage renal disease" 
+      "confidence_score": "number",          // Confidence level as % (integer or float) 
+      "explanation": "string",               // 1-2 line summary why this code is relevant to the note 
+      "clinical_relevance": "string"         // Optional: short reasoning describing clinical link 
+    }} 
+  ] 
+}} 
+
+Rules: 
+- Include only 1–5 of the most relevant ICD-10 codes. 
+- Do not include unrelated or speculative codes. 
+- Confidence scores must sum up to <= 100%. 
+- Avoid adding notes or explanations outside of JSON. 
+- The JSON must be valid and parsable. 
+
+Input-doc-clinical-Notes: 
+{{ 
+  "clinical_note": "{request.clinical_note}" 
+}} 
+
+Input-Patient-Historical-Ailments: 
+{historical_ailments_text if historical_ailments_text else "No historical ailments provided"}"""
+
+        # Prepare messages for LLM
+        messages = [
+            {"role": "system", "content": "You are an expert medical coder specializing in ICD-10-CM classification."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        # Call LLM
+        response = await llm_client.chat(
+            messages=messages,
+            temperature=0.1,
+            max_tokens=2000
+        )
+        
+        # Parse the JSON response
+        try:
+            # Extract JSON from response (in case there's extra text)
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start != -1 and json_end != -1:
+                json_response = response[json_start:json_end]
+                parsed_response = json.loads(json_response)
+            else:
+                parsed_response = json.loads(response)
+            
+            # Validate and format the response
+            ai_suggested_codes = []
+            for code_data in parsed_response.get("ai_suggested_icd_codes", []):
+                ai_suggested_codes.append(ICDCodeSuggestion(
+                    icd_code=code_data.get("icd_code", ""),
+                    icd_title=code_data.get("icd_title", ""),
+                    confidence_score=float(code_data.get("confidence_score", 0)),
+                    explanation=code_data.get("explanation", ""),
+                    clinical_relevance=code_data.get("clinical_relevance")
+                ))
+            
+            return AISuggestedICDResponse(
+                ai_suggested_icd_codes=ai_suggested_codes
+            )
+            
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to parse LLM response as JSON: {str(e)}. Response: {response}"
+            )
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI ICD code suggestion failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"AI ICD code suggestion failed: {str(e)}"
+        )
 
 
 @router.post("/getCPTCodes", summary="Get CPT Codes for Selected ICD Code")

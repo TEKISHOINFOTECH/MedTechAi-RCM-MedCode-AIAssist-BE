@@ -58,6 +58,9 @@ dependencies = [
     # "icd10-cm>=1.0.0",   # Uncomment if available
     # "hcpcs-codes>=1.0.0", # Uncomment if available
     "supabase>=2.22.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
 ]
 
 [project.optional-dependencies]

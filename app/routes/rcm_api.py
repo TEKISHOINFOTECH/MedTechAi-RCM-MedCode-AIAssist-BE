@@ -136,6 +136,107 @@ class AISuggestedICDResponse(BaseModel):
     ai_suggested_icd_codes: List[ICDCodeSuggestion] = Field(..., description="List of AI suggested ICD codes")
 
 
+class SOAPFormatRequest(BaseModel):
+    """Request model for SOAP format conversion."""
+    clinical_note: str = Field(..., description="Clinical note text to convert to SOAP format")
+
+
+class SOAPFormattedText(BaseModel):
+    """SOAP formatted text structure."""
+    Subjective: List[str] = Field(..., description="Patient-reported symptoms and history")
+    Objective: List[str] = Field(..., description="Observable findings and measurements")
+    Assessment: List[str] = Field(..., description="Diagnoses and medical impressions")
+    Plan: List[str] = Field(..., description="Treatment plans and follow-up actions")
+
+
+class SOAPFormatResponse(BaseModel):
+    """Response model for SOAP format conversion."""
+    SOAP_Formatted_Text: SOAPFormattedText = Field(..., description="SOAP formatted clinical notes")
+
+
+# SOAP CONVERSION FUNCTION
+
+async def convert_to_soap_format(clinical_note: str) -> SOAPFormattedText:
+    """
+    Convert clinical notes to SOAP format using LLM.
+    
+    Args:
+        clinical_note: The clinical note text to convert
+        
+    Returns:
+        SOAPFormattedText: Structured SOAP format data
+        
+    Raises:
+        Exception: If LLM call or parsing fails
+    """
+    from app.utils.llm import LLMClient
+    import json
+    
+    # Initialize LLM client
+    llm_client = LLMClient()
+    
+    # Construct the prompt
+    prompt = f"""You are a senior medical scribe. Convert the following free-text clinical note into a SOAP summary. 
+
+Return ONLY valid JSON in this exact schema: 
+
+"SOAP_Formatted_Text" : {{ 
+  "Subjective": ["...","..."],   // bullet points; strings only 
+  "Objective": ["...","..."], 
+  "Assessment": ["...","..."],   // diagnoses/impressions 
+  "Plan": ["...","..."]          // treatments, orders, follow-up 
+}} 
+
+Rules: 
+- No fields outside the 4 keys above. 
+- No hallucinations or inferences beyond the source. 
+- If a section is empty, use ["None documented."]. 
+- Normalize units/dates; expand abbreviations only if unambiguous. 
+
+Source clinical notes: 
+{clinical_note}"""
+
+    # Prepare messages for LLM
+    messages = [
+        {"role": "system", "content": "You are a senior medical scribe specializing in SOAP note conversion."},
+        {"role": "user", "content": prompt}
+    ]
+    
+    # Call LLM
+    response = await llm_client.chat(
+        messages=messages,
+        temperature=0.1,
+        max_tokens=2000
+    )
+    
+    # Parse the JSON response
+    try:
+        # Extract JSON from response (in case there's extra text)
+        json_start = response.find('{')
+        json_end = response.rfind('}') + 1
+        if json_start != -1 and json_end != -1:
+            json_response = response[json_start:json_end]
+            parsed_response = json.loads(json_response)
+        else:
+            parsed_response = json.loads(response)
+        
+        # Extract SOAP data from response
+        soap_data = parsed_response.get("SOAP_Formatted_Text", {})
+        
+        # Create SOAPFormattedText object with defaults for missing sections
+        soap_formatted_text = SOAPFormattedText(
+            Subjective=soap_data.get("Subjective", ["None documented."]),
+            Objective=soap_data.get("Objective", ["None documented."]),
+            Assessment=soap_data.get("Assessment", ["None documented."]),
+            Plan=soap_data.get("Plan", ["None documented."])
+        )
+        
+        return soap_formatted_text
+        
+    except json.JSONDecodeError as e:
+        raise Exception(f"Failed to parse LLM response as JSON: {str(e)}. Response: {response}")
+
+
 # HIGH PRIORITY ENDPOINTS
 
 @router.post("/edi_json_persist", summary="Save Claim Data to Supabase", response_model=ClaimDataResponse)
@@ -576,40 +677,34 @@ async def upload_edi_xml(
         raise HTTPException(status_code=500, detail=f"EDI XML upload failed: {str(e)}")
 
 
-@router.post("/improveToSOAP", summary="Improve Clinical Notes to SOAP Format")
+@router.post("/improveToSOAP", summary="Convert Clinical Notes to SOAP Format", response_model=SOAPFormatResponse)
 async def improve_to_soap(
-    request: ICDCodeRequest,
+    request: SOAPFormatRequest,
     db: Session = Depends(get_db)
 ):
     """
-    Improve clinical notes with SOAP format using AI LLM.
+    Convert clinical notes to SOAP format using AI LLM.
     
     **Priority: Medium**
     
-    **UI Request:** Doc Notes
-    **BE Response:** SOAP formatted clinical notes
+    **UI Request:** 
+    - clinical_note: Clinical note text string
+    
+    **BE Response:** SOAP formatted clinical notes with Subjective, Objective, Assessment, and Plan sections
     """
     try:
-        # TODO: Implement AI LLM logic here
-        # For now, return mock response
-        return {
-            "api_method_name": "improveToSOAP",
-            "status": "working",
-            "message": "SOAP improvement endpoint is functional",
-            "mock_response": {
-                "soap_format": "S: Patient reports chest pain and shortness of breath\nO: Physical examination reveals elevated blood pressure\nA: Assessment shows possible cardiac event\nP: Plan includes EKG, cardiac enzymes, and cardiology consultation",
-                "improvements_made": [
-                    "Structured notes into SOAP format",
-                    "Added objective findings",
-                    "Improved assessment clarity",
-                    "Enhanced plan specificity"
-                ],
-                "confidence_score": 0.89
-            },
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # Use the separate LLM function for SOAP conversion
+        soap_formatted_text = await convert_to_soap_format(request.clinical_note)
+        
+        return SOAPFormatResponse(
+            SOAP_Formatted_Text=soap_formatted_text
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"SOAP improvement failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"SOAP format conversion failed: {str(e)}"
+        )
 
 
 # LOW PRIORITY ENDPOINTS

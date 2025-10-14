@@ -136,6 +136,27 @@ class AISuggestedICDResponse(BaseModel):
     ai_suggested_icd_codes: List[ICDCodeSuggestion] = Field(..., description="List of AI suggested ICD codes")
 
 
+class AISuggestedCPTRequest(BaseModel):
+    """Request model for AI suggested CPT codes."""
+    clinical_notes: str = Field(..., description="Free-text clinician documentation for this encounter.")
+    history: Optional[str] = Field(None, description="Pertinent history/ongoing problems, meds, devices, allergies.")
+    selected_icds: Optional[List[str]] = Field(None, description="ICD-10-CM codes marked as relevant.")
+    max_results: int = Field(10, ge=1, le=20, description="Maximum CPT items to return")
+
+
+class CPTSuggestion(BaseModel):
+    """Individual CPT code suggestion adhering to ProCoder schema."""
+    code: str = Field(..., description="CPT code (AMA CPT only)")
+    confidence: int = Field(..., ge=90, le=100, description="Integer confidence between 90 and 100")
+    short_title: str = Field(..., description="Concise CPT short title")
+    description: str = Field(..., description="1–2 line rationale tied to documentation and related diagnosis")
+
+
+class AISuggestedCPTResponse(BaseModel):
+    """Response model for AI suggested CPT codes."""
+    results: List[CPTSuggestion] = Field(..., description="CPT suggestions sorted by confidence desc")
+
+
 class SOAPFormatRequest(BaseModel):
     """Request model for SOAP format conversion."""
     clinical_note: str = Field(..., description="Clinical note text to convert to SOAP format")
@@ -542,7 +563,7 @@ Return your response **strictly in JSON format** that follows this structure:
 Rules: 
 - Include only 1–5 of the most relevant ICD-10 codes. 
 - Do not include unrelated or speculative codes. 
-- Confidence scores must sum up to <= 100%. 
+- Confidence scores must be above >90%. 
 - Avoid adding notes or explanations outside of JSON. 
 - The JSON must be valid and parsable. 
 
@@ -604,6 +625,127 @@ Input-Patient-Historical-Ailments:
             status_code=500, 
             detail=f"AI ICD code suggestion failed: {str(e)}"
         )
+
+
+@router.post("/getAISuggested_CPTCodes", summary="Get AI Suggested CPT Codes", response_model=AISuggestedCPTResponse)
+async def get_ai_suggested_cpt_codes(
+    request: AISuggestedCPTRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Suggest medically necessary CPT codes for the encounter using ProCoder rules.
+    Returns JSON array only, constrained to CPT codes and confidence 90–100.
+    """
+    try:
+        from app.utils.llm import LLMClient
+        import json
+
+        system_prompt = """You are ProCoder, a conservative, standards-compliant CPT coding assistant.
+
+Objective
+From the provided inputs, suggest the most accurate CPT® procedure/service codes that are medically necessary for the encounter. Output JSON only using the exact schema below. Include only items you can justify at ≥90% confidence.
+
+Inputs (from caller)
+clinical_notes: free-text clinician documentation for this encounter.
+history: pertinent past history/ongoing problems, meds, devices, allergies.
+selected_icds: zero or more ICD-10-CM codes the clinician marked as relevant.
+
+Hard Rules
+Code set: Use CPT (AMA) codes only. Do not output ICD, HCPCS Level II, SNOMED, or local codes.
+Medical necessity link: Every suggested CPT must be clearly supported by the clinical notes and clinically consistent with at least one condition (from notes or selected_icds). If a procedure is not supported, do not return it.
+Encounter scope only: Code only what was performed this encounter (or what is clearly ordered/performed). Do not anticipate future care.
+Granularity & components: Choose the most specific CPT. Use combined/“bundled” codes when they inherently include components.
+NCCI bundling logic: Avoid mutually exclusive or bundled pairings. Return a single most-appropriate code set.
+E/M (2021+ rules): If an E/M visit is documented, select the level by MDM or total time, but exclude it if a global surgical package makes it non-billable unless documentation supports a separately identifiable service (modifier -25 eligible).
+Modifiers (advice only): You may suggest common modifiers in the description text (e.g., -25, -26, -TC, laterality -RT/-LT, -59/-XS), but do not output modifier codes as separate CPT items.
+Imaging/Procedures: Distinguish procedure vs. interpretation (e.g., ECG 93000 vs. 93010/93005; CT with/without contrast; ultrasound limited vs. complete; supervision & interpretation included/excluded).
+Anesthesia: Return anesthesia CPT only if clearly documented.
+Diagnostics ordered vs. performed: Return diagnostics only if performed and documented (or explicitly “performed and interpreted”). “Ordered only” → exclude.
+Confidence threshold: Return only items with confidence between 90 and 100 (integer). If nothing reaches 90, return an empty array.
+
+Deterministic output:
+Sort by confidence (desc).
+Limit to max_results.
+JSON array only, no prose, no extra fields.
+PHI: Do not echo any PHI from the notes in the output.
+
+Output Schema (JSON array only)
+Each element must match exactly:
+{
+  "code": "#####",
+  "confidence": 95,
+  "short_title": "concise CPT short title",
+  "description": "1–2 line plain-English rationale tying the service to the documentation and related diagnosis."
+}
+
+Confidence rubric (do not output reasoning)
+100: Procedure explicitly documented with all required qualifiers.
+95: Explicitly documented; one minor qualifier implied by standard context.
+90: Strong evidence; nearly complete qualifiers but minor ambiguity.
+<90: Any significant ambiguity, missing performance evidence, or bundling conflict.
+
+Guardrails
+Prefer one primary code per procedure; add distinct secondary procedures only if separately performed and not bundled.
+If selected_icds are provided and supported, favor CPTs that are medically necessary for those diagnoses.
+If documentation is insufficient for specificity, withhold the code rather than guessing.
+
+Return JSON only.
+"""
+
+        inference_prompt = f"""clinical_notes: {request.clinical_notes}
+history: {request.history or ""}
+selected_icds: {(request.selected_icds or [])}
+max_results: {request.max_results}
+
+Return:
+JSON array of objects with fields: code, confidence (90–100), short_title, description. Nothing else.
+"""
+
+        llm = LLMClient()
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": inference_prompt},
+        ]
+
+        raw = await llm.chat(messages=messages, temperature=0.1, max_tokens=1200)
+
+        # Parse JSON array robustly
+        try:
+            start = raw.find('[')
+            end = raw.rfind(']') + 1
+            payload = raw[start:end] if start != -1 and end != -1 else raw
+            data = json.loads(payload)
+            if not isinstance(data, list):
+                data = []
+        except json.JSONDecodeError:
+            data = []
+
+        # Normalize and filter
+        items: List[CPTSuggestion] = []
+        for item in data:
+            try:
+                code = str(item.get("code", "")).strip()
+                confidence = int(item.get("confidence", 0))
+                short_title = str(item.get("short_title", "")).strip()
+                description = str(item.get("description", "")).strip()
+                if code and 90 <= confidence <= 100 and short_title and description:
+                    items.append(CPTSuggestion(
+                        code=code,
+                        confidence=confidence,
+                        short_title=short_title,
+                        description=description
+                    ))
+            except Exception:
+                continue
+
+        # Sort and limit
+        items.sort(key=lambda x: x.confidence, reverse=True)
+        items = items[: request.max_results]
+
+        return AISuggestedCPTResponse(results=items)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI CPT code suggestion failed: {str(e)}")
 
 
 @router.post("/getCPTCodes", summary="Get CPT Codes for Selected ICD Code")
@@ -812,6 +954,7 @@ async def rcm_api_health():
             "GET /rcm-api/getEDIclaims_Jsondata (High Priority - Data Retrieval)",
             "GET /rcm-api/getClaimIdsData (High Priority - Claim Metadata)",
             "POST /rcm-api/getAISuggested_ICDCodes (High Priority)",
+            "POST /rcm-api/getAISuggested_CPTCodes (High Priority)",
             "POST /rcm-api/getCPTCodes (High Priority)",
             "POST /rcm-api/uploadEDI_XML (Medium Priority)",
             "POST /rcm-api/improveToSOAP (Medium Priority)",

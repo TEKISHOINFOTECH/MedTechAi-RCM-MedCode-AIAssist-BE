@@ -666,6 +666,7 @@ Confidence threshold: Return only items with confidence between 90 and 100 (inte
 Deterministic output:
 Sort by confidence (desc).
 Limit to max_results.
+Minimum 2 CPT codes when documentation supports multiple distinct services.
 JSON array only, no prose, no extra fields.
 PHI: Do not echo any PHI from the notes in the output.
 
@@ -685,9 +686,12 @@ Confidence rubric (do not output reasoning)
 <90: Any significant ambiguity, missing performance evidence, or bundling conflict.
 
 Guardrails
-Prefer one primary code per procedure; add distinct secondary procedures only if separately performed and not bundled.
+Always attempt to identify at least 2 distinct CPT codes when documentation supports multiple services.
+Include primary procedure plus separately identifiable E/M, imaging with interpretation, or ancillary services.
 If selected_icds are provided and supported, favor CPTs that are medically necessary for those diagnoses.
 If documentation is insufficient for specificity, withhold the code rather than guessing.
+
+When documentation clearly supports multiple distinct, separately billable services (not subject to NCCI bundling or global package conflicts), return all such CPTs up to max_results.
 
 Return JSON only.
 """
@@ -698,7 +702,7 @@ selected_icds: {(request.selected_icds or [])}
 max_results: {request.max_results}
 
 Return:
-JSON array of objects with fields: code, confidence (90–100), short_title, description. Nothing else.
+JSON array of objects with fields: code, confidence (90–100), short_title, description. Aim for minimum 2 CPT codes when possible. Nothing else.
 """
 
         llm = LLMClient()

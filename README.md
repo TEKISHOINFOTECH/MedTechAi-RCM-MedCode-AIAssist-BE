@@ -14,6 +14,8 @@ An advanced AI-powered platform for Revenue Cycle Management (RCM) that validate
 
 ## 🏗️ Architecture
 
+
+
 ### Backend (Python)
 - **FastAPI**: Modern, fast web framework for building APIs
 - **SQLAlchemy**: Advanced ORM for database operations

@@ -689,6 +689,8 @@ Prefer one primary code per procedure; add distinct secondary procedures only if
 If selected_icds are provided and supported, favor CPTs that are medically necessary for those diagnoses.
 If documentation is insufficient for specificity, withhold the code rather than guessing.
 
+When documentation clearly supports multiple distinct, separately billable services (not subject to NCCI bundling or global package conflicts), return all such CPTs up to max_results.
+
 Return JSON only.
 """
 

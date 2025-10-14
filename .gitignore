@@ -292,6 +292,18 @@ data/external/*
 !data/processed/.gitkeep
 !data/external/.gitkeep
 
+# Google Cloud service account keys
+docs/stt_key.json
+*.json
+!package.json
+!tsconfig.json
+!tailwind.config.js
+!postcss.config.js
+!eslint.config.js
+!vite.config.ts
+!vercel.json
+!render.yaml
+
 # API keys and secrets
 secrets/
 .keys/

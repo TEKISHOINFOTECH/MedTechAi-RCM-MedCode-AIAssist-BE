@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, date
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
+from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
@@ -960,6 +961,7 @@ async def rcm_api_health():
             "POST /rcm-api/getAISuggested_ICDCodes (High Priority)",
             "POST /rcm-api/getAISuggested_CPTCodes (High Priority)",
             "POST /rcm-api/getCPTCodes (High Priority)",
+            "WEBSOCKET /rcm-api/gemini-live-transcribe (High Priority - Live STT)",
             "POST /rcm-api/uploadEDI_XML (Medium Priority)",
             "POST /rcm-api/improveToSOAP (Medium Priority)",
             "GET /rcm-api/getEDIclaims_data (Low Priority)",
@@ -967,3 +969,122 @@ async def rcm_api_health():
         ],
         "timestamp": datetime.utcnow().isoformat()
     }
+
+
+# LIVE AUDIO TRANSCRIPTION (WEBSOCKET)
+@router.websocket("/rcm-api/gemini-live-transcribe")
+async def ws_gemini_live_transcribe(websocket: WebSocket, sample_rate_hz: int = 16000):
+    """
+    WebSocket endpoint for live English transcription.
+
+    Protocol:
+    - Client connects and sends binary audio frames (mono PCM16 LINEAR16) at sample_rate_hz (default 16000).
+    - Server streams back JSON messages:
+        {"type":"partial","text":"..."} for interim hypotheses
+        {"type":"final","text":"..."} for finalized segments
+    - Send a text message "stop" to end the session gracefully.
+
+    Requirements:
+    - GOOGLE_APPLICATION_CREDENTIALS must point to a valid GCP service account JSON with Speech-to-Text enabled
+    - Package: google-cloud-speech
+    """
+    await websocket.accept()
+    await websocket.send_json({
+        "type": "info",
+        "message": "Send PCM16 mono audio frames as binary. Text 'stop' to end."
+    })
+
+    import asyncio
+    import threading
+    from queue import Queue
+
+    # Import client lazily to avoid import cost if unused
+    from app.services.transcription.google_streaming import StreamingSTTClient
+
+    # Queues for cross-thread communication
+    audio_queue: Queue = Queue(maxsize=200)
+    results_q: asyncio.Queue = asyncio.Queue(maxsize=200)
+    stop_event = threading.Event()
+
+    # Audio iterator consumed by STT thread
+    def audio_iter():
+        while not (stop_event.is_set() and audio_queue.empty()):
+            chunk = audio_queue.get()
+            if chunk is None:
+                break
+            yield chunk
+
+    loop = asyncio.get_running_loop()
+
+    def stt_worker():
+        try:
+            client = StreamingSTTClient(sample_rate_hz=sample_rate_hz)
+            for item in client.stream(audio_iter()):
+                # item: {"text": str, "is_final": bool}
+                loop.call_soon_threadsafe(results_q.put_nowait, item)
+        except Exception as e:
+            loop.call_soon_threadsafe(results_q.put_nowait, {"error": str(e)})
+        finally:
+            loop.call_soon_threadsafe(results_q.put_nowait, {"_done": True})
+
+    worker = threading.Thread(target=stt_worker, daemon=True)
+    worker.start()
+
+    try:
+        while True:
+            # Concurrently wait on either incoming audio or outgoing transcripts
+            done, pending = await asyncio.wait(
+                [
+                    asyncio.create_task(websocket.receive()),
+                    asyncio.create_task(results_q.get()),
+                ],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+            for task in done:
+                result = task.result()
+
+                # If result is a websocket receive
+                if isinstance(result, dict) and ("type" in result):
+                    # Transcript from worker
+                    if result.get("_done"):
+                        await websocket.send_json({"type": "done"})
+                        await websocket.close()
+                        stop_event.set()
+                        audio_queue.put(None)
+                        return
+                    if "error" in result:
+                        await websocket.send_json({"type": "error", "message": result["error"]})
+                        continue
+                    await websocket.send_json({
+                        "type": "final" if result.get("is_final") else "partial",
+                        "text": result.get("text", "")
+                    })
+                else:
+                    # WebSocket receive event
+                    message = result
+                    if "bytes" in message and message["bytes"] is not None:
+                        audio_queue.put(message["bytes"])
+                    elif "text" in message and message["text"] is not None:
+                        text = message["text"].strip().lower()
+                        if text == "stop":
+                            stop_event.set()
+                            audio_queue.put(None)
+                            await websocket.send_json({"type": "done"})
+                            await websocket.close()
+                            return
+                        # Ignore other text messages
+
+            # Cancel any pending tasks to avoid leaks
+            for task in pending:
+                task.cancel()
+
+    except WebSocketDisconnect:
+        stop_event.set()
+        audio_queue.put(None)
+    except Exception as e:
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        finally:
+            stop_event.set()
+            audio_queue.put(None)

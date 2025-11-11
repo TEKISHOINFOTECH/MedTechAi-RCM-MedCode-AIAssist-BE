@@ -13,6 +13,7 @@ from app.routes import usecase1
 from app.routes import supabase
 from app.routes import orchestrator
 from app.routes import rcm_api
+from app.routes import connectivity
 
 
 @asynccontextmanager
@@ -41,6 +42,7 @@ app.include_router(usecase1.router)
 app.include_router(supabase.router)
 app.include_router(orchestrator.router)
 app.include_router(rcm_api.router)
+app.include_router(connectivity.router)
 
 # Add middleware
 app.add_middleware(

@@ -54,6 +54,7 @@ app.add_middleware(
         "https://medtechai-rcm-backend-i2rh.onrender.com",
         "https://medtechai-rcm-backend.onrender.com",
         "https://medtech-ai-rcm-med-code-ai-assist-u.vercel.app",
+        "https://rightdoc-ui.vercel.app",
         "https://yourdomain.com"
     ],
     allow_credentials=True,
@@ -64,7 +65,7 @@ app.add_middleware(
 if not settings.debug:
     app.add_middleware(
         TrustedHostMiddleware, 
-        allowed_hosts=["yourdomain.com", "*.yourdomain.com", "*.onrender.com", "*.render.com"]
+        allowed_hosts=["yourdomain.com", "*.yourdomain.com", "*.onrender.com", "*.render.com", "*.vercel.app"]
     )
 
 

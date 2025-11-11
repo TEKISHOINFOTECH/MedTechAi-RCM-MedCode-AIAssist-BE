@@ -22,8 +22,8 @@ RUN apt-get update \
 # Install UV
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy UV configuration files
-COPY pyproject.toml uv.lock ./
+# Copy UV configuration files and README (required by pyproject.toml)
+COPY pyproject.toml uv.lock README.md ./
 
 # Install dependencies
 RUN uv sync --frozen --no-dev
@@ -32,7 +32,7 @@ RUN uv sync --frozen --no-dev
 COPY . .
 
 # Create non-root user
-RUN groupadd - -g 1000 medtechai \
+RUN groupadd --gid 1000 medtechai \
     && useradd --no-log-init -r -g medtechai -u 1000 medtechai \
     && chown -R medtechai:medtechai /app
 

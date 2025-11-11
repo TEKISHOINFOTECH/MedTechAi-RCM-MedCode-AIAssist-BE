@@ -110,40 +110,60 @@ async def check_openai() -> Dict[str, Any]:
 
 
 async def check_postgresql() -> Dict[str, Any]:
-    """Check PostgreSQL (Render) connectivity."""
+    """Check PostgreSQL (Render) or SQLite connectivity."""
     try:
         # Test database connection
         with engine.connect() as conn:
-            # Get database name
-            db_result = conn.execute(text("SELECT current_database()"))
-            db_name = db_result.scalar()
+            is_sqlite = "sqlite" in settings.database_url.lower()
             
-            # Get tables count
-            tables_result = conn.execute(text("""
-                SELECT COUNT(*) 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public'
-            """))
-            tables_count = tables_result.scalar()
-            
-            # Get PostgreSQL version
-            version_result = conn.execute(text("SELECT version()"))
-            version = version_result.scalar()
-            
-            # Extract connection info (hide password)
-            db_url = settings.database_url
-            if "@" in db_url:
-                connection_info = db_url.split("@")[-1]
+            if is_sqlite:
+                # SQLite-specific queries
+                db_name = "SQLite"
+                tables_result = conn.execute(text("""
+                    SELECT COUNT(*) 
+                    FROM sqlite_master 
+                    WHERE type='table' AND name NOT LIKE 'sqlite_%'
+                """))
+                tables_count = tables_result.scalar()
+                version = "SQLite (development)"
+                connection_info = "sqlite:///./medtechai_rcm.db"
             else:
-                connection_info = "configured"
+                # PostgreSQL-specific queries
+                try:
+                    db_result = conn.execute(text("SELECT current_database()"))
+                    db_name = db_result.scalar()
+                except:
+                    db_name = "postgresql"
+                
+                tables_result = conn.execute(text("""
+                    SELECT COUNT(*) 
+                    FROM information_schema.tables 
+                    WHERE table_schema = 'public'
+                """))
+                tables_count = tables_result.scalar()
+                
+                try:
+                    version_result = conn.execute(text("SELECT version()"))
+                    version = version_result.scalar()
+                    version = version.split(",")[0] if version else "PostgreSQL"
+                except:
+                    version = "PostgreSQL"
+                
+                # Extract connection info (hide password)
+                db_url = settings.database_url
+                if "@" in db_url:
+                    connection_info = db_url.split("@")[-1]
+                else:
+                    connection_info = "configured"
             
             return {
                 "status": "connected",
-                "message": "PostgreSQL connection successful",
+                "message": f"{'SQLite' if is_sqlite else 'PostgreSQL'} connection successful",
                 "database": db_name,
                 "tables_count": tables_count,
-                "version": version.split(",")[0] if version else None,
+                "version": version,
                 "connection_info": connection_info,
+                "database_type": "sqlite" if is_sqlite else "postgresql",
                 "configured": True
             }
     except Exception as e:

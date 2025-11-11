@@ -333,11 +333,21 @@ class SupabaseService:
                 return available_tables
 
 
-# Global service instance
-supabase_service = SupabaseService()
+# Global service instance (lazy initialization)
+_supabase_service: Optional[SupabaseService] = None
 
 
 # Convenience functions
 async def get_supabase_service() -> SupabaseService:
-    """Get Supabase service instance."""
-    return supabase_service
+    """Get Supabase service instance (lazy initialization)."""
+    global _supabase_service
+    if _supabase_service is None:
+        try:
+            _supabase_service = SupabaseService()
+        except ValueError as e:
+            # Supabase not configured - raise a more helpful error
+            raise ValueError(
+                "Supabase is not configured. Please set SUPABASE_URL and SUPABASE_KEY "
+                "environment variables, or use Supabase endpoints only if Supabase is configured."
+            ) from e
+    return _supabase_service

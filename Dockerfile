@@ -6,7 +6,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     POETRY_NO_INTERACTION=1 \
     POETRY_VENV_IN_PROJECT=1 \
-    POETRY_CACHE_DIR=/tmp/poetry_cache
+    POETRY_CACHE_DIR=/tmp/poetry_cache \
+    UV_CACHE_DIR=/tmp/uv_cache
 
 # Set work directory
 WORKDIR /app
@@ -31,10 +32,11 @@ RUN uv sync --frozen --no-dev
 # Copy application code
 COPY . .
 
-# Create non-root user
+# Create non-root user and set up directories
 RUN groupadd --gid 1000 medtechai \
     && useradd --no-log-init -r -g medtechai -u 1000 medtechai \
-    && chown -R medtechai:medtechai /app
+    && mkdir -p /tmp/uv_cache /home/medtechai/.cache/uv \
+    && chown -R medtechai:medtechai /app /home/medtechai /tmp/uv_cache
 
 # Switch to non-root user
 USER medtechai
